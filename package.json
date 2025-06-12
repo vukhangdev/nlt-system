@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon src/index.js",
+    "postinstall": "npm install --omit=dev"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.50.0",
