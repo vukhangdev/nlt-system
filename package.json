@@ -3,11 +3,10 @@
   "version": "1.0.0",
   "description": "Backend API with Node.js, Express and Supabase",
   "main": "src/index.js",
-  "type": "module",
-  "scripts": {
+  "type": "module",  "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "postinstall": "npm install --omit=dev"
+    "vercel-build": "echo hello"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.50.0",
