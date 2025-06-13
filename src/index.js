@@ -38,11 +38,13 @@ export const supabase = createClient(
 import healthCheckRoutes from './routes/healthCheck.js';
 import userRoutes from './routes/user.js';
 import authRoutes from './routes/auth.js';
+import testRoutes from './routes/test.js';
 
 // Use routes
-app.use('/api', healthCheckRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/auth', authRoutes);
+app.use('/', healthCheckRoutes);
+app.use('/users', userRoutes);
+app.use('/auth', authRoutes);
+app.use('/test',testRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
