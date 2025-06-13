@@ -1,4 +1,5 @@
 import { supabase } from '../index.js';
+import bcrypt from 'bcrypt';
 
 export class User {
   // Chỉ định các trường hợp lệ cho schema
@@ -22,6 +23,11 @@ export class User {
       throw new Error('username, email, and password are required');
     }
     if (!validData.role) validData.role = 'user';
+
+    // Hash password before saving
+    const saltRounds = 10;
+    validData.password = await bcrypt.hash(validData.password, saltRounds);
+
     const { data, error } = await supabase
       .from('users')
       .insert([validData])
@@ -35,6 +41,13 @@ export class User {
   static async update(id, userData) {
     const validData = User.pickValidFields(userData, ['username', 'email', 'password', 'role']);
     if (Object.keys(validData).length === 0) throw new Error('No valid fields to update');
+
+    // Hash password if it's being updated
+    if (validData.password) {
+      const saltRounds = 10;
+      validData.password = await bcrypt.hash(validData.password, saltRounds);
+    }
+
     const { data, error } = await supabase
       .from('users')
       .update(validData)
@@ -61,4 +74,4 @@ export class User {
       Object.entries(data).filter(([key]) => allowedFields.includes(key))
     );
   }
-} 
+}
