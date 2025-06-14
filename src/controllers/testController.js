@@ -251,3 +251,46 @@ export async function submitTestController(req, res) {
     });
   }
 }
+
+export async function addQuestionsToTestController(req, res) {
+  const { test_id, questions } = req.body;
+
+  if (!test_id || !Array.isArray(questions) || questions.length === 0) {
+    return res.status(400).json({ error: 'test_id and questions are required' });
+  }
+
+  try {
+    const createdQuestions = [];
+
+    for (const q of questions) {
+      if (!q.content || !Array.isArray(q.choices) || q.choices.length === 0) continue;
+
+      const newQuestion = await Question.create({
+        test_id,
+        content: q.content
+      });
+
+      const questionId = newQuestion.id;
+
+      for (const choice of q.choices) {
+        if (!choice.content || typeof choice.is_correct !== 'boolean') continue;
+
+        await Choice.create({
+          question_id: questionId,
+          content: choice.content,
+          is_correct: choice.is_correct
+        });
+      }
+
+      createdQuestions.push(newQuestion);
+    }
+
+    return res.status(201).json({
+      message: 'New questions added successfully',
+      data: createdQuestions
+    });
+  } catch (error) {
+    console.error('Error adding questions:', error.message);
+    return res.status(500).json({ error: 'Internal server error', detail: error.message });
+  }
+}
