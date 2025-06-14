@@ -5,6 +5,7 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
+    "start:tunnel": "cloudflared-windows-amd64.exe tunnel --url http://localhost:3000",
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "vercel-build": "echo hello"

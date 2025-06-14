@@ -27,4 +27,4 @@ logs
 dist/
 build/
 .wrangler/
-.dev.vars 
+.dev.vars

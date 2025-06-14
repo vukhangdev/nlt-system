@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import session from 'express-session';
 import { createClient } from '@supabase/supabase-js';
+import { authMiddleware } from './middleware/auth.js';
 
 // Load environment variables
 dotenv.config();
@@ -23,8 +24,10 @@ app.use(session({
 
 // Middleware
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-  credentials: true
+  origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
 
@@ -40,11 +43,16 @@ import userRoutes from './routes/user.js';
 import authRoutes from './routes/auth.js';
 import testRoutes from './routes/test.js';
 
-// Use routes
+// Public routes (no authentication required)
 app.use('/', healthCheckRoutes);
-app.use('/users', userRoutes);
 app.use('/auth', authRoutes);
-app.use('/test',testRoutes);
+
+// Apply authentication middleware for all routes below this line
+app.use(authMiddleware);
+
+// Protected routes (require authentication)
+app.use('/users', userRoutes);
+app.use('/test', testRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

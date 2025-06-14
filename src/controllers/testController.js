@@ -79,7 +79,6 @@ export async function getTestController(req, res) {
   }
 
   try {
-    // Get test details
     const test = await Test.findById(id);
     
     if (!test) {
@@ -88,13 +87,15 @@ export async function getTestController(req, res) {
 
     // Get questions for the test
     const { data: questions } = await supabase
-      .from('questions')      .select('id, content')
+      .from('questions')
+      .select('id, content')
       .eq('test_id', id);
 
-    // Get choices for each question without is_correct field
+    // Get choices for each question including is_correct field
     const questionsWithChoices = await Promise.all(questions.map(async (question) => {
       const { data: choices } = await supabase
-        .from('choices')        .select('id, content')
+        .from('choices')
+        .select('id, content, is_correct')
         .eq('question_id', question.id);
 
       return {
@@ -113,5 +114,140 @@ export async function getTestController(req, res) {
   } catch (error) {
     console.error('Error fetching test:', error.message);
     return res.status(500).json({ error: 'Internal server error', detail: error.message });
+  }
+}
+
+export async function submitTestController(req, res) {
+  try {
+    const { test_id, answers } = req.body;
+    const user = req.user;
+
+    // Validate user authentication
+    if (!user?.id) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    // Validate required fields
+    if (!test_id || !Array.isArray(answers)) {
+      return res.status(400).json({ error: 'test_id and answers are required' });
+    }
+
+    // Validate test exists
+    const test = await Test.findById(test_id);
+    if (!test) {
+      return res.status(404).json({ error: 'Test not found' });
+    }
+
+    let score = 0;
+    const detailed = [];
+
+    // Process each answer
+    for (const { question_id, answer_id } of answers) {
+      if (!question_id || !answer_id) {
+        return res.status(400).json({ 
+          error: 'Each answer must contain question_id and answer_id'
+        });
+      }
+
+      try {
+        const { data: correct, error } = await supabase
+          .from('choices')
+          .select('id')
+          .eq('question_id', question_id)
+          .eq('is_correct', true)
+          .single();
+
+        if (error) {
+          console.error('Database error:', error);
+          return res.status(500).json({ 
+            error: 'Error checking answer correctness'
+          });
+        }
+
+        const is_correct = correct.id === answer_id;
+        if (is_correct) score++;
+        detailed.push({ question_id, answer_id, is_correct });
+      } catch (err) {
+        console.error('Answer processing error:', err);
+        return res.status(500).json({ 
+          error: 'Error processing answer'
+        });
+      }
+    }
+
+    const total = answers.length;
+    const percentage = (score / total) * 100;
+
+    try {
+      const { data: questions } = await supabase
+        .from('questions')
+        .select('id, content')
+        .eq('test_id', test_id);
+
+      const fullQuestions = await Promise.all(questions.map(async (q) => {
+        const { data: choices, error } = await supabase
+          .from('choices')
+          .select('id, content, is_correct')
+          .eq('question_id', q.id);
+
+        if (error) {
+          throw new Error('Error fetching choices');
+        }
+
+        const userAnswer = detailed.find(a => a.question_id === q.id);
+        
+        // Add is_answered only to the user's selected choice
+        const processedChoices = choices.map(choice => {
+          if (choice.id === userAnswer?.answer_id) {
+            return { ...choice, is_answered: true };
+          }
+          return choice;
+        });
+
+        return {
+          ...q,
+          choices: processedChoices
+        };
+      }));
+
+      // Save test result
+      const { error: resultError } = await supabase
+        .from('test_results')
+        .insert({
+          user_id: user.id,
+          test_id: test_id,
+          score: score,
+          total: total,
+          percentage: percentage,
+          submitted_at: new Date().toISOString()
+        });
+
+      if (resultError) {
+        console.error('Error saving test result:', resultError);
+      }
+
+      return res.status(200).json({
+        message: 'Test submitted successfully',
+        result: {
+          score,
+          total,
+          percentage,
+          test,
+          questions: fullQuestions
+        }
+      });
+
+    } catch (err) {
+      console.error('Error processing test results:', err);
+      return res.status(500).json({ 
+        error: 'Error processing test results'
+      });
+    }
+
+  } catch (err) {
+    console.error('Submit test error:', err);
+    return res.status(500).json({ 
+      error: 'Error submitting test'
+    });
   }
 }
