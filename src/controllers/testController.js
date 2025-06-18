@@ -95,7 +95,7 @@ export async function getTestController(req, res) {
     const questionsWithChoices = await Promise.all(questions.map(async (question) => {
       const { data: choices } = await supabase
         .from('choices')
-        .select('id, content, is_correct')
+        .select('id, content')
         .eq('question_id', question.id);
 
       return {
@@ -252,7 +252,7 @@ export async function submitTestController(req, res) {
   }
 }
 
-export async function addQuestionsToTestController(req, res) {
+export async function addQuestionsController(req, res) {
   const { test_id, questions } = req.body;
 
   if (!test_id || !Array.isArray(questions) || questions.length === 0) {
@@ -291,6 +291,76 @@ export async function addQuestionsToTestController(req, res) {
     });
   } catch (error) {
     console.error('Error adding questions:', error.message);
+    return res.status(500).json({ error: 'Internal server error', detail: error.message });
+  }
+}
+
+export async function updateQuestionsController(req, res) {
+  const { questions } = req.body;
+
+  // Validate questions array
+  if (!Array.isArray(questions) || questions.length === 0) {
+    return res.status(400).json({ error: 'At least one question is required' });
+  }
+
+  try {
+    const updatedQuestions = [];
+
+    // Update each question and its choices
+    for (const q of questions) {
+      // Validate question data
+      if (!q.id || !q.content || q.content.trim() === '') {
+        return res.status(400).json({ error: 'Question ID and content are required for each question' });
+      }
+
+      if (!Array.isArray(q.choices)) {
+        return res.status(400).json({ error: 'Choices must be an array for each question' });
+      }
+
+      // Verify the question exists
+      const existingQuestion = await Question.findById(q.id);
+      if (!existingQuestion) {
+        return res.status(404).json({ error: `Question with ID ${q.id} not found` });
+      }
+
+      // Update the question
+      const updatedQuestion = await Question.update(q.id, {
+        content: q.content
+      });
+
+      // Update choices
+      const updatedChoices = [];
+      for (const choice of q.choices) {
+        if (!choice.id) {
+          return res.status(400).json({ error: 'Choice ID is required. Creating new choices is not allowed.' });
+        }
+        if (!choice.content || choice.content.trim() === '') {
+          return res.status(400).json({ error: 'Choice content is required' });
+        }
+        if (typeof choice.is_correct !== 'boolean') {
+          return res.status(400).json({ error: 'Choice must have a valid is_correct boolean value' });
+        }
+
+        // Update existing choice
+        const updatedChoice = await Choice.update(choice.id, {
+          content: choice.content,
+          is_correct: choice.is_correct
+        });
+        updatedChoices.push(updatedChoice);
+      }
+
+      updatedQuestions.push({
+        ...updatedQuestion,
+        choices: updatedChoices
+      });
+    }
+
+    return res.status(200).json({
+      message: 'Questions updated successfully',
+      data: updatedQuestions
+    });
+  } catch (error) {
+    console.error('Error updating questions:', error.message);
     return res.status(500).json({ error: 'Internal server error', detail: error.message });
   }
 }
